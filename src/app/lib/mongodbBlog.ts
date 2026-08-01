@@ -102,4 +102,37 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
     }
 }
 
+export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+    if (!MONGODB_URI_BLOG || !slug) {
+        return null;
+    }
+
+    try {
+        const conn = await dbBlogConnect();
+        const BlogModel = conn.models.Blog || conn.model<BlogPostDocument>("Blog", blogSchema);
+
+        const post = await BlogModel.findOne({ blog_slug: slug })
+            .lean<BlogPostDocument | null>()
+            .exec();
+
+        if (!post) {
+            return null;
+        }
+
+        return {
+            _id: post._id?.toString?.() ?? "",
+            blog_title: post.blog_title ?? "Untitled blog",
+            blog_description: post.blog_description ?? "",
+            blog_content: post.blog_content ?? "",
+            blog_image: post.blog_image ?? "",
+            blog_slug: post.blog_slug ?? slug,
+            createdAt: post.createdAt ? post.createdAt.toISOString() : "",
+            updatedAt: post.updatedAt ? post.updatedAt.toISOString() : "",
+        };
+    } catch (error) {
+        console.error(`Failed to fetch blog post with slug ${slug}:`, error);
+        return null;
+    }
+}
+
 export default dbBlogConnect;
