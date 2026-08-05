@@ -10,17 +10,165 @@ import {
 } from "@/components/ui/navigation-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
+import {
+    useCurrentAccount,
+    useCurrentClient,
+    useCurrentNetwork,
+    useCurrentWallet,
+    useDAppKit,
+} from "@mysten/dapp-kit-react"
+import { useQuery } from "@tanstack/react-query"
+import dynamic from "next/dynamic"
 import Image from "next/image"
+import { ChevronDown, LogOut } from "lucide-react"
+
+const SuiConnectButton = dynamic(
+    () => import("@mysten/dapp-kit-react/ui").then(module => module.ConnectButton),
+    {
+        ssr: false,
+        loading: () => <Button disabled size="sm">Connect</Button>,
+    },
+)
+
+function shortenAddress(address: string) {
+    return `${address.slice(0, 6)}…${address.slice(-4)}`
+}
+
+function addressHash(address: string) {
+    let hash = 0
+    for (let index = 0; index < address.length; index += 1) {
+        hash = (hash << 5) - hash + address.charCodeAt(index)
+        hash |= 0
+    }
+    return hash >>> 0
+}
+
+function AddressAvatar({ address, className }: { address: string; className?: string }) {
+    const hash = addressHash(address)
+    const hue = hash % 360
+    const cells: Array<[number, number]> = []
+
+    for (let index = 0; index < 15; index += 1) {
+        const bit = (hash >>> (index % 24)) & 1
+        const column = index % 3
+        const row = Math.floor(index / 3)
+
+        if (bit) {
+            cells.push([column, row], [4 - column, row])
+        }
+    }
+
+    return (
+        <svg
+            aria-hidden="true"
+            className={cn("shrink-0 rounded-full bg-muted", className)}
+            viewBox="0 0 5 5"
+        >
+            <rect fill={`hsl(${hue} 55% 22%)`} height="5" width="5" />
+            {cells.map(([x, y], index) => (
+                <rect fill={`hsl(${hue} 78% 66%)`} height="1" key={`${x}-${y}-${index}`} width="1" x={x} y={y} />
+            ))}
+        </svg>
+    )
+}
+
+function WalletControl() {
+    const account = useCurrentAccount()
+    const wallet = useCurrentWallet()
+    const dAppKit = useDAppKit()
+
+    if (!account || !wallet) {
+        return <SuiConnectButton aria-label="Connect Sui wallet" />
+    }
+
+    return (
+        <Popover>
+            <PopoverTrigger
+                aria-label={`Wallet ${shortenAddress(account.address)}`}
+                render={
+                    <Button size="sm" variant="outline">
+                        <AddressAvatar address={account.address} className="size-5" />
+                        <span className="hidden sm:inline">{shortenAddress(account.address)}</span>
+                        <ChevronDown className="size-3.5" />
+                    </Button>
+                }
+            />
+            <PopoverContent align="end" className="w-64 p-2">
+                <div className="px-2 py-1.5">
+                    <p className="text-xs text-muted-foreground">{wallet.name}</p>
+                    <p className="mt-0.5 truncate font-medium">{account.address}</p>
+                </div>
+                <div className="my-1 border-t" />
+                <p className="px-2 py-1 text-xs font-medium text-muted-foreground">Accounts</p>
+                {wallet.accounts.map(walletAccount => {
+                    const isCurrentAccount = walletAccount.address === account.address
+
+                    return (
+                        <button
+                            className={cn(
+                                "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent",
+                                isCurrentAccount && "bg-accent",
+                            )}
+                            key={walletAccount.address}
+                            onClick={() => dAppKit.switchAccount({ account: walletAccount })}
+                            type="button"
+                        >
+                            <AddressAvatar address={walletAccount.address} className="size-7" />
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium">{walletAccount.label ?? shortenAddress(walletAccount.address)}</span>
+                                <span className="block truncate text-xs text-muted-foreground">{shortenAddress(walletAccount.address)}</span>
+                            </span>
+                            {isCurrentAccount && <span className="text-xs text-muted-foreground">Active</span>}
+                        </button>
+                    )
+                })}
+                <div className="my-1 border-t" />
+                <Button className="w-full justify-start" onClick={() => void dAppKit.disconnectWallet()} size="sm" variant="ghost">
+                    <LogOut />
+                    Disconnect
+                </Button>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
+function WalletBalance() {
+    const account = useCurrentAccount()
+    const client = useCurrentClient()
+    const network = useCurrentNetwork()
+    const { data, isPending } = useQuery({
+        queryKey: ["balance", account?.address, network],
+        queryFn: () => client.core.getBalance({
+            owner: account!.address,
+            coinType: "0x2::sui::SUI",
+        }),
+        enabled: Boolean(account),
+        refetchInterval: 15_000,
+    })
+
+    if (!account) return null
+
+    const amount = Number(data?.balance.balance ?? "0") / 1_000_000_000
+    const formattedAmount = new Intl.NumberFormat("en-US", {
+        maximumFractionDigits: 4,
+    }).format(amount)
+
+    return (
+        <span className="hidden text-sm font-medium tabular-nums text-foreground sm:inline">
+            {isPending ? "Loading..." : `${formattedAmount} SUI`}
+        </span>
+    )
+}
 
 // Simple logo component for the navbar
-const Logo = (props: React.SVGAttributes<SVGElement>) => {
+const Logo = () => {
     return (
         <Image src="/logo.png" alt="Logo" width={64} height={64} />
     )
 }
 
 // Hamburger icon component
-const HamburgerIcon = ({ className, ...props }: React.SVGAttributes<SVGElement>) => (
+const HamburgerIcon = ({ className, ...props }: React.SVGAttributes<SVGSVGElement>) => (
     <svg
         aria-label="Menu"
         className={cn("pointer-events-none", className)}
@@ -34,7 +182,7 @@ const HamburgerIcon = ({ className, ...props }: React.SVGAttributes<SVGElement>)
         viewBox="0 0 24 24"
         width={16}
         xmlns="http://www.w3.org/2000/svg"
-        {...(props as any)}
+        {...props}
     >
         <path
             className="origin-center -translate-y-[7px] transition-all duration-300 ease-[cubic-bezier(.5,.85,.25,1.1)] group-aria-expanded:translate-x-0 group-aria-expanded:translate-y-0 group-aria-expanded:rotate-[315deg]"
@@ -60,14 +208,7 @@ export interface NavbarNavLink {
 
 export interface NavbarProps extends React.HTMLAttributes<HTMLElement> {
     logo?: React.ReactNode
-    logoHref?: string
     navigationLinks?: NavbarNavLink[]
-    signInText?: string
-    signInHref?: string
-    ctaText?: string
-    ctaHref?: string
-    onSignInClick?: () => void
-    onCtaClick?: () => void
 }
 
 // Default navigation links
@@ -83,14 +224,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
         {
             className,
             logo = <Logo />,
-            logoHref = "#",
             navigationLinks = defaultNavigationLinks,
-            signInText = "Sign In",
-            signInHref = "#signin",
-            ctaText = "Get Started",
-            ctaHref = "#get-started",
-            onSignInClick,
-            onCtaClick,
             ...props
         },
         ref,
@@ -138,7 +272,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                     className,
                 )}
                 ref={combinedRef}
-                {...(props as any)}
+                {...props}
             >
                 <div className="container mx-auto flex h-16 max-w-screen-2xl items-center justify-between gap-4">
                     {/* Left side */}
@@ -215,33 +349,9 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                             )}
                         </div>
                     </div>
-                    {/* Right side */}
                     <div className="flex items-center gap-3">
-                        <Button
-                            className="text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-                            onClick={e => {
-                                e.preventDefault()
-                                if (onSignInClick) {
-                                    onSignInClick()
-                                }
-                            }}
-                            size="sm"
-                            variant="ghost"
-                        >
-                            {signInText}
-                        </Button>
-                        <Button
-                            className="text-sm font-medium px-4 h-9 rounded-md shadow-sm"
-                            onClick={e => {
-                                e.preventDefault()
-                                if (onCtaClick) {
-                                    onCtaClick()
-                                }
-                            }}
-                            size="sm"
-                        >
-                            {ctaText}
-                        </Button>
+                        <WalletBalance />
+                        <WalletControl />
                     </div>
                 </div>
             </header>
