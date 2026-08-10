@@ -7,6 +7,9 @@ type UserDocument = {
   bio: string;
   location: string;
   website: string;
+  profileImage: string;
+  coverImage: string;
+  nftMintedDigest: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -18,9 +21,14 @@ export type User = {
   bio: string;
   location: string;
   website: string;
+  profileImage: string;
+  coverImage: string;
+  nftMintedDigest: string;
   createdAt: string;
   updatedAt: string;
 };
+
+type UserUpdates = Partial<Pick<UserDocument, "displayName" | "bio" | "location" | "website" | "profileImage" | "coverImage" | "nftMintedDigest">>;
 
 const MONGODB_URI_USER = process.env.MONGODB_URI_USER || process.env.MONGODB_URI_BLOG || "";
 const USER_COLLECTION = process.env.MONGODB_USER_COLLECTION || "users";
@@ -32,6 +40,9 @@ const userSchema = new Schema<UserDocument>(
     bio: { type: String, default: "" },
     location: { type: String, default: "" },
     website: { type: String, default: "" },
+    profileImage: { type: String, default: "" },
+    coverImage: { type: String, default: "" },
+    nftMintedDigest: { type: String, default: "" },
   },
   { timestamps: true, collection: USER_COLLECTION },
 );
@@ -70,17 +81,24 @@ function toUser(user: UserDocument): User {
     bio: user.bio,
     location: user.location,
     website: user.website,
+    profileImage: user.profileImage,
+    coverImage: user.coverImage,
+    nftMintedDigest: user.nftMintedDigest,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
 }
 
-export async function findOrCreateUser(walletAddress: string): Promise<User> {
+export async function findOrCreateUser(walletAddress: string, updates: UserUpdates = {}): Promise<User> {
   const conn = await dbUserConnect();
   const UserModel = conn.models.User || conn.model<UserDocument>("User", userSchema);
+  const updatePayload = Object.keys(updates).length > 0
+    ? { $setOnInsert: { walletAddress }, $set: updates }
+    : { $setOnInsert: { walletAddress } };
+
   const user = await UserModel.findOneAndUpdate(
     { walletAddress },
-    { $setOnInsert: { walletAddress } },
+    updatePayload,
     { new: true, upsert: true, setDefaultsOnInsert: true },
   ).lean<UserDocument>().exec();
 
