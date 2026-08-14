@@ -140,6 +140,12 @@ export function ProfilePage() {
       return;
     }
 
+    if (!account?.address) {
+      setStatusMessage("Connect your wallet first so we can save the uploaded image.");
+      setStatusTone("error");
+      return;
+    }
+
     setUploadingImage(true);
     setStatusMessage("Uploading your image to Cloudinary...");
     setStatusTone("info");
@@ -147,6 +153,7 @@ export function ProfilePage() {
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
+      formData.append("walletAddress", account.address);
 
       const response = await fetch("/api/profile/upload", {
         method: "POST",
@@ -156,13 +163,10 @@ export function ProfilePage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Image upload failed");
 
-      const uploadedUrl = data.secureUrl as string;
-      setProfile((current) => ({
-        ...current,
-        profileImage: uploadedUrl,
-        coverImage: uploadedUrl,
-      }));
-      setStatusMessage("Image uploaded to Cloudinary successfully.");
+      const uploadedImage = data.image as { url: string; id: string; owner: string };
+      setStatusMessage(
+        `Image saved to your gallery (${uploadedImage.url}). Choose it as your avatar or banner later.`,
+      );
       setStatusTone("success");
       setSelectedFile(null);
     } catch (error) {
