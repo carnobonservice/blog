@@ -354,8 +354,8 @@ export function ProfilePage() {
         <section className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Cloud upload + NFT mint</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Upload a profile image to Cloudinary, then mint a Sui NFT that references that image URL.</p>
+              <h2 className="text-lg font-semibold">Upload image to Cloudinary</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Upload a profile image to Cloudinary and save it to your profile.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-black/10 bg-white px-3.5 py-2 text-sm font-semibold shadow-sm transition hover:bg-muted">
@@ -366,6 +366,24 @@ export function ProfilePage() {
               <button disabled={uploadingImage || !selectedFile} onClick={uploadProfileImage} className="rounded-xl bg-violet-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50">
                 {uploadingImage ? "Uploading..." : "Upload image"}
               </button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-dashed border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-800">
+            <p className="font-semibold">Setup tip</p>
+            <p className="mt-1 leading-6">
+              Configure <span className="font-mono">CLOUDINARY_CLOUD_NAME</span>, <span className="font-mono">CLOUDINARY_API_KEY</span>, and <span className="font-mono">CLOUDINARY_API_SECRET</span> in your environment.
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Mint profile NFT</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Mint a Sui NFT with your profile information.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
               <button disabled={minting || !account?.address} onClick={mintProfileNft} className="rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                 {minting ? "Minting..." : "Mint NFT"}
               </button>
@@ -375,7 +393,7 @@ export function ProfilePage() {
           <div className="mt-4 rounded-2xl border border-dashed border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-800">
             <p className="font-semibold">Setup tip</p>
             <p className="mt-1 leading-6">
-              Configure <span className="font-mono">CLOUDINARY_UPLOAD_PRESET</span> and <span className="font-mono">NEXT_PUBLIC_NFT_MOVE_TARGET</span> in your environment to finish the upload and mint flow.
+              Configure <span className="font-mono">NEXT_PUBLIC_NFT_MOVE_TARGET</span> in your environment to enable minting.
             </p>
             {profile.nftMintedDigest ? <p className="mt-3 font-medium">Last minted digest: {profile.nftMintedDigest}</p> : null}
           </div>
