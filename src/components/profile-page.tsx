@@ -1,11 +1,11 @@
 "use client";
 
-import { useDAppKit, useCurrentAccount } from "@mysten/dapp-kit-react";
-import { Transaction } from "@mysten/sui/transactions";
+import { useCurrentAccount } from "@mysten/dapp-kit-react";
 import { BadgeCheck, CalendarDays, Camera, Check, Edit3, Heart, Link2, MapPin, MessageCircle, MoreHorizontal, Share2, Sparkles, Upload, Sparkle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { NftMinter } from "@/components/nft-minter";
 
 type DatabaseUser = {
   displayName: string;
@@ -48,12 +48,9 @@ function shortAddress(address?: string) {
 
 export function ProfilePage() {
   const account = useCurrentAccount();
-  const dAppKit = useDAppKit();
   const [tab, setTab] = useState<"posts" | "likes" | "about">("posts");
   const [editing, setEditing] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [minting, setMinting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusTone, setStatusTone] = useState<"success" | "error" | "info">("info");
   const [profile, setProfile] = useState<ProfileState>(defaultProfile);
@@ -122,10 +119,8 @@ export function ProfilePage() {
       if (!response.ok) throw new Error("Unable to save the profile");
 
       setEditing(false);
-      setSaved(true);
       setStatusMessage("Profile changes saved and synced.");
       setStatusTone("success");
-      window.setTimeout(() => setSaved(false), 2500);
     } catch (error) {
       console.error(error);
       setStatusMessage(error instanceof Error ? error.message : "Unable to save the profile.");
@@ -175,53 +170,6 @@ export function ProfilePage() {
       setStatusTone("error");
     } finally {
       setUploadingImage(false);
-    }
-  }
-
-  async function mintProfileNft() {
-    if (!account?.address) {
-      setStatusMessage("Connect your wallet before minting an NFT.");
-      setStatusTone("error");
-      return;
-    }
-
-    const moveTarget = process.env.NEXT_PUBLIC_NFT_MOVE_TARGET;
-    if (!moveTarget) {
-      setStatusMessage("Set NEXT_PUBLIC_NFT_MOVE_TARGET to a Move target before minting.");
-      setStatusTone("error");
-      return;
-    }
-
-    setMinting(true);
-    setStatusMessage("Requesting wallet signature for the mint...");
-    setStatusTone("info");
-
-    try {
-      const tx = new Transaction();
-      tx.moveCall({
-        target: moveTarget,
-        arguments: [
-          tx.pure.string(profile.name),
-          tx.pure.string(profile.bio),
-          tx.pure.string(profile.profileImage || profile.coverImage || ""),
-        ],
-      });
-
-      const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
-      if (result.FailedTransaction) {
-        throw new Error(result.FailedTransaction.status.error?.message || "The mint transaction failed.");
-      }
-
-      const digest = result.Transaction.digest;
-      setProfile((current) => ({ ...current, nftMintedDigest: digest }));
-      setStatusMessage(`NFT mint complete. Digest: ${digest}`);
-      setStatusTone("success");
-    } catch (error) {
-      console.error(error);
-      setStatusMessage(error instanceof Error ? error.message : "Minting failed.");
-      setStatusTone("error");
-    } finally {
-      setMinting(false);
     }
   }
 
@@ -377,27 +325,9 @@ export function ProfilePage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Mint profile NFT</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Mint a Sui NFT with your profile information.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button disabled={minting || !account?.address} onClick={mintProfileNft} className="rounded-xl bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                {minting ? "Minting..." : "Mint NFT"}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-dashed border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-800">
-            <p className="font-semibold">Setup tip</p>
-            <p className="mt-1 leading-6">
-              Configure <span className="font-mono">NEXT_PUBLIC_NFT_MOVE_TARGET</span> in your environment to enable minting.
-            </p>
-            {profile.nftMintedDigest ? <p className="mt-3 font-medium">Last minted digest: {profile.nftMintedDigest}</p> : null}
-          </div>
-        </section>
+        <div className="mt-6">
+          <NftMinter />
+        </div>
       </div>
 
       {editing && (
