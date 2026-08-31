@@ -109,3 +109,12 @@ export async function getNftsByOwner(owner: string): Promise<Nft[]> {
 
     return nfts.map(toNft);
 }
+
+export async function getNftById(id: string): Promise<Nft | null> {
+    if (!mongoose.isObjectIdOrHexString(id)) return null;
+
+    const conn = await dbNftConnect();
+    const NftModel = conn.models.Nft || conn.model<NftDocument>("Nft", nftSchema);
+    const nft = await NftModel.findById(id).lean<NftDocument | null>().exec();
+    return nft ? toNft(nft) : null;
+}

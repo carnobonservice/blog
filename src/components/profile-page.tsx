@@ -1,13 +1,12 @@
 "use client";
 
 import { useCurrentAccount } from "@mysten/dapp-kit-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, CalendarDays, Camera, Check, Edit3, Heart, Link2, MapPin, MessageCircle, MoreHorizontal, Share2, Sparkles, Upload, Sparkle } from "lucide-react";
+import { BadgeCheck, CalendarDays, Camera, Check, Edit3, Heart, Link2, MapPin, MessageCircle, MoreHorizontal, Share2, Sparkles, Sparkle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { NftMinter } from "@/components/nft-minter";
 import { ProfileAssets } from "@/components/profile-assets";
+import { ProfileMediaPicker } from "@/components/profile-media-picker";
 
 type DatabaseUser = {
   displayName: string;
@@ -50,14 +49,12 @@ function shortAddress(address?: string) {
 
 export function ProfilePage() {
   const account = useCurrentAccount();
-  const queryClient = useQueryClient();
-  const [tab, setTab] = useState<"posts" | "likes" | "about">("posts");
+  const [tab, setTab] = useState<"posts" | "likes" | "about" | "assets">("posts");
   const [editing, setEditing] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<"profile" | "cover" | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusTone, setStatusTone] = useState<"success" | "error" | "info">("info");
   const [profile, setProfile] = useState<ProfileState>(defaultProfile);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
     const walletAddress = account?.address;
@@ -131,52 +128,6 @@ export function ProfilePage() {
     }
   }
 
-  async function uploadProfileImage() {
-    if (!selectedFile) {
-      setStatusMessage("Pick an image file first.");
-      setStatusTone("error");
-      return;
-    }
-
-    if (!account?.address) {
-      setStatusMessage("Connect your wallet first so we can save the uploaded image.");
-      setStatusTone("error");
-      return;
-    }
-
-    setUploadingImage(true);
-    setStatusMessage("Uploading your image to Cloudinary...");
-    setStatusTone("info");
-
-    try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("walletAddress", account.address);
-
-      const response = await fetch("/api/profile/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Image upload failed");
-
-      const uploadedImage = data.image as { url: string; id: string; owner: string };
-      await queryClient.invalidateQueries({ queryKey: ["nft-gallery", account.address] });
-      setStatusMessage(
-        `Image saved to your gallery (${uploadedImage.url}). You can now set it as your avatar or cover.`,
-      );
-      setStatusTone("success");
-      setSelectedFile(null);
-    } catch (error) {
-      console.error(error);
-      setStatusMessage(error instanceof Error ? error.message : "Image upload failed.");
-      setStatusTone("error");
-    } finally {
-      setUploadingImage(false);
-    }
-  }
-
   async function useGalleryImage(imageUrl: string, placement: "profile" | "cover") {
     if (!account?.address) return;
 
@@ -211,7 +162,7 @@ export function ProfilePage() {
             {profile.coverImage ? (
               <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${profile.coverImage})` }} />
             ) : null}
-            <button aria-label="Change cover image" className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-black/30">
+            <button aria-label="Change cover image" className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-black/30" onClick={() => setMediaPickerTarget("cover")} type="button">
               <Camera className="size-3.5" /> Edit cover
             </button>
           </div>
@@ -224,7 +175,7 @@ export function ProfilePage() {
                 ) : (
                   profile.name.slice(0, 2).toUpperCase()
                 )}
-                <button aria-label="Change profile photo" className="absolute -bottom-1 -right-1 grid size-8 place-items-center rounded-full border-2 border-white bg-violet-600 text-white">
+                <button aria-label="Change profile photo" className="absolute -bottom-1 -right-1 grid size-8 place-items-center rounded-full border-2 border-white bg-violet-600 text-white" onClick={() => setMediaPickerTarget("profile")} type="button">
                   <Camera className="size-3.5" />
                 </button>
               </div>
@@ -268,8 +219,8 @@ export function ProfilePage() {
 
         <section className="mt-6 overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
           <div className="flex gap-6 border-b px-5 sm:px-6">
-            {(["posts", "likes", "about"] as const).map((item) => (
-              <button key={item} onClick={() => setTab(item)} className={cn("border-b-2 py-4 text-sm font-semibold capitalize transition", tab === item ? "border-violet-600 text-violet-700" : "border-transparent text-muted-foreground hover:text-foreground")}>{item === "posts" ? "Posts" : item === "likes" ? "Likes" : "About"}</button>
+            {(["posts", "likes", "about", "assets"] as const).map((item) => (
+              <button key={item} onClick={() => setTab(item)} className={cn("border-b-2 py-4 text-sm font-semibold capitalize transition", tab === item ? "border-violet-600 text-violet-700" : "border-transparent text-muted-foreground hover:text-foreground")}>{item === "posts" ? "Posts" : item === "likes" ? "Likes" : item === "about" ? "About" : "Assets"}</button>
             ))}
           </div>
 
@@ -323,39 +274,8 @@ export function ProfilePage() {
               </div>
             </div>
           )}
+          {tab === "assets" && <ProfileAssets embedded onUseImage={useGalleryImage} />}
         </section>
-
-        <ProfileAssets onUseImage={useGalleryImage} />
-
-        <section className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Upload image to Cloudinary</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Upload a profile image to Cloudinary and save it to your profile.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-black/10 bg-white px-3.5 py-2 text-sm font-semibold shadow-sm transition hover:bg-muted">
-                <Upload className="size-4" />
-                {selectedFile ? selectedFile.name : "Choose image"}
-                <input accept="image/*" className="sr-only" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} type="file" />
-              </label>
-              <button disabled={uploadingImage || !selectedFile} onClick={uploadProfileImage} className="rounded-xl bg-violet-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50">
-                {uploadingImage ? "Uploading..." : "Upload image"}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-dashed border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-800">
-            <p className="font-semibold">Setup tip</p>
-            <p className="mt-1 leading-6">
-              Configure <span className="font-mono">CLOUDINARY_CLOUD_NAME</span>, <span className="font-mono">CLOUDINARY_API_KEY</span>, and <span className="font-mono">CLOUDINARY_API_SECRET</span> in your environment.
-            </p>
-          </div>
-        </section>
-
-        <div className="mt-6">
-          <NftMinter />
-        </div>
       </div>
 
       {editing && (
@@ -380,6 +300,16 @@ export function ProfilePage() {
           </section>
         </div>
       )}
+      {mediaPickerTarget ? (
+        <ProfileMediaPicker
+          onClose={() => setMediaPickerTarget(null)}
+          onSelect={(imageUrl) => {
+            void useGalleryImage(imageUrl, mediaPickerTarget);
+            setMediaPickerTarget(null);
+          }}
+          target={mediaPickerTarget}
+        />
+      ) : null}
     </main>
   );
 }
