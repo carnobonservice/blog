@@ -3,7 +3,7 @@
 import { useCurrentAccount, useCurrentClient, useDAppKit } from "@mysten/dapp-kit-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Transaction } from "@mysten/sui/transactions";
-import { Check, ImagePlus, Images, Loader2, Sparkles, Upload, X } from "lucide-react";
+import { Check, ImagePlus, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -148,9 +148,38 @@ export function NftMinter() {
 
             const digest = result.Transaction.digest;
             await client.core.waitForTransaction({ digest });
+
+            const saveResponse = await fetch("/api/nft", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    walletAddress: account.address,
+                    name: name.trim(),
+                    description: description.trim(),
+                    image: selectedImage,
+                    digest,
+                }),
+            });
+
+            const saveData = await saveResponse.json().catch(() => ({}));
+            if (!saveResponse.ok) {
+                throw new Error(saveData.error || "Unable to save the NFT record.");
+            }
+
+            await fetch("/api/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    walletAddress: account.address,
+                    nftMintedDigest: digest,
+                }),
+            });
+
+            await queryClient.invalidateQueries({ queryKey: ["profile-nfts", account.address] });
+
             setStatus({
                 tone: "success",
-                message: "NFT minted successfully! Your NFT is now on Sui.",
+                message: "NFT minted successfully! Your NFT is now on Sui and saved in the database.",
             });
         } catch (error) {
             console.error(error);

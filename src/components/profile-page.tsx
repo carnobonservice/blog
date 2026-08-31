@@ -1,11 +1,13 @@
 "use client";
 
 import { useCurrentAccount } from "@mysten/dapp-kit-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { BadgeCheck, CalendarDays, Camera, Check, Edit3, Heart, Link2, MapPin, MessageCircle, MoreHorizontal, Share2, Sparkles, Upload, Sparkle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { NftMinter } from "@/components/nft-minter";
+import { ProfileAssets } from "@/components/profile-assets";
 
 type DatabaseUser = {
   displayName: string;
@@ -48,6 +50,7 @@ function shortAddress(address?: string) {
 
 export function ProfilePage() {
   const account = useCurrentAccount();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<"posts" | "likes" | "about">("posts");
   const [editing, setEditing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -159,8 +162,9 @@ export function ProfilePage() {
       if (!response.ok) throw new Error(data.error || "Image upload failed");
 
       const uploadedImage = data.image as { url: string; id: string; owner: string };
+      await queryClient.invalidateQueries({ queryKey: ["nft-gallery", account.address] });
       setStatusMessage(
-        `Image saved to your gallery (${uploadedImage.url}). Choose it as your avatar or banner later.`,
+        `Image saved to your gallery (${uploadedImage.url}). You can now set it as your avatar or cover.`,
       );
       setStatusTone("success");
       setSelectedFile(null);
@@ -170,6 +174,28 @@ export function ProfilePage() {
       setStatusTone("error");
     } finally {
       setUploadingImage(false);
+    }
+  }
+
+  async function useGalleryImage(imageUrl: string, placement: "profile" | "cover") {
+    if (!account?.address) return;
+
+    const updates = placement === "profile" ? { profileImage: imageUrl } : { coverImage: imageUrl };
+    setProfile((current) => ({ ...current, ...updates }));
+
+    try {
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: account.address, ...updates }),
+      });
+      if (!response.ok) throw new Error("Unable to update your profile image.");
+      setStatusMessage(placement === "profile" ? "Avatar updated." : "Cover image updated.");
+      setStatusTone("success");
+    } catch (error) {
+      console.error(error);
+      setStatusMessage(error instanceof Error ? error.message : "Unable to update your profile image.");
+      setStatusTone("error");
     }
   }
 
@@ -298,6 +324,8 @@ export function ProfilePage() {
             </div>
           )}
         </section>
+
+        <ProfileAssets onUseImage={useGalleryImage} />
 
         <section className="mt-6 rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
