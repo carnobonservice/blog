@@ -7,6 +7,7 @@ type NftDocument = {
     description: string;
     image: string;
     digest: string;
+    postSlug?: string;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -18,6 +19,7 @@ export type Nft = {
     description: string;
     image: string;
     digest: string;
+    postSlug: string;
     createdAt: string;
     updatedAt: string;
 };
@@ -32,6 +34,8 @@ const nftSchema = new Schema<NftDocument>(
         description: { type: String, default: "" },
         image: { type: String, required: true },
         digest: { type: String, required: true, unique: true, index: true },
+        // At most one official collectible is recorded for each blog post.
+        postSlug: { type: String, unique: true, sparse: true, index: true },
     },
     { timestamps: true, collection: NFT_COLLECTION },
 );
@@ -70,6 +74,7 @@ function toNft(nft: NftDocument): Nft {
         description: nft.description,
         image: nft.image,
         digest: nft.digest,
+        postSlug: nft.postSlug ?? "",
         createdAt: nft.createdAt.toISOString(),
         updatedAt: nft.updatedAt.toISOString(),
     };
@@ -77,7 +82,7 @@ function toNft(nft: NftDocument): Nft {
 
 export async function createNft(
     owner: string,
-    payload: { name: string; description: string; image: string; digest: string },
+    payload: { name: string; description: string; image: string; digest: string; postSlug?: string },
 ): Promise<Nft> {
     const conn = await dbNftConnect();
     const NftModel = conn.models.Nft || conn.model<NftDocument>("Nft", nftSchema);
@@ -87,12 +92,18 @@ export async function createNft(
         return toNft(existing);
     }
 
+    if (payload.postSlug) {
+        const existingPostNft = await NftModel.findOne({ postSlug: payload.postSlug }).lean<NftDocument>().exec();
+        if (existingPostNft) return toNft(existingPostNft);
+    }
+
     const nft = await NftModel.create({
         owner,
         name: payload.name,
         description: payload.description,
         image: payload.image,
         digest: payload.digest,
+        postSlug: payload.postSlug,
     });
 
     return toNft(nft);

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBlogPostBySlug } from "@/app/lib/mongodbBlog";
+import { PostNftMinter } from "@/components/post-nft-minter";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export default async function PostPage({ params }: PostPageProps) {
                         {post.blog_description ? <p className="mb-6 font-medium">{post.blog_description}</p> : null}
                         <div dangerouslySetInnerHTML={{ __html: post.blog_content || "" }} />
                     </div>
+                    <PostNftMinter post={post} />
                 </div>
             </article>
         </main>
