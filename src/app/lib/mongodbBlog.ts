@@ -80,7 +80,7 @@ async function dbBlogConnect() {
     return cachedBlog.conn;
 }
 
-export async function getBlogPosts(): Promise<BlogPost[]> {
+export async function getBlogPosts(authorWallet?: string): Promise<BlogPost[]> {
     if (!MONGODB_URI_BLOG) {
         return [];
     }
@@ -89,7 +89,7 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
         const conn = await dbBlogConnect();
         const BlogModel = conn.models.Blog || conn.model<BlogPostDocument>("Blog", blogSchema);
 
-        const posts = await BlogModel.find({})
+        const posts = await BlogModel.find(authorWallet ? { authorWallet: authorWallet.toLowerCase() } : {})
             .sort({ createdAt: -1 })
             .lean<BlogPostDocument[]>()
             .exec();

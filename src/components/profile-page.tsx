@@ -2,11 +2,13 @@
 
 import { useCurrentAccount } from "@mysten/dapp-kit-react";
 import { BadgeCheck, CalendarDays, Camera, Check, Edit3, Heart, Link2, MapPin, MessageCircle, MoreHorizontal, Share2, Sparkles, Sparkle } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ProfileAssets } from "@/components/profile-assets";
 import { ProfileMediaPicker } from "@/components/profile-media-picker";
+import type { BlogPost } from "@/app/lib/mongodbBlog";
 
 type DatabaseUser = {
   displayName: string;
@@ -38,11 +40,6 @@ const defaultProfile: ProfileState = {
   nftMintedDigest: "",
 };
 
-const activity = [
-  { id: 1, text: "Shared a new post", time: "2h", likes: 24, replies: 4, image: true },
-  { id: 2, text: "Today I’m choosing progress over perfection. A small step towards the thing you care about is still a win. What’s one thing you’re moving forward today?", time: "Yesterday", likes: 68, replies: 11, image: false },
-];
-
 function shortAddress(address?: string) {
   return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "@yourprofile";
 }
@@ -55,6 +52,7 @@ export function ProfilePage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [statusTone, setStatusTone] = useState<"success" | "error" | "info">("info");
   const [profile, setProfile] = useState<ProfileState>(defaultProfile);
+  const [posts, setPosts] = useState<BlogPost[]>([]);
 
   useEffect(() => {
     const walletAddress = account?.address;
@@ -94,6 +92,28 @@ export function ProfilePage() {
     };
   }, [account?.address]);
 
+  useEffect(() => {
+    const walletAddress = account?.address ?? "";
+    if (!walletAddress) return;
+
+    let cancelled = false;
+    async function loadPosts() {
+      try {
+        const response = await fetch(`/api/posts?walletAddress=${encodeURIComponent(walletAddress)}`);
+        if (!response.ok) throw new Error("Unable to load your posts");
+        const { posts: databasePosts }: { posts: BlogPost[] } = await response.json();
+        if (!cancelled) setPosts(databasePosts);
+      } catch (error) {
+        console.error("Unable to load profile posts:", error);
+      }
+    }
+
+    void loadPosts();
+    return () => {
+      cancelled = true;
+    };
+  }, [account?.address]);
+
   async function saveProfile() {
     if (!account?.address) {
       setStatusMessage("Connect your wallet first so we can save the profile.");
@@ -128,7 +148,7 @@ export function ProfilePage() {
     }
   }
 
-  async function useGalleryImage(imageUrl: string, placement: "profile" | "cover") {
+  async function saveGalleryImage(imageUrl: string, placement: "profile" | "cover") {
     if (!account?.address) return;
 
     const updates = placement === "profile" ? { profileImage: imageUrl } : { coverImage: imageUrl };
@@ -171,7 +191,7 @@ export function ProfilePage() {
             <div className="-mt-14 flex flex-col gap-4 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
               <div className="relative grid size-28 place-items-center overflow-hidden rounded-[1.75rem] border-[5px] border-white bg-slate-900 text-2xl font-bold text-white shadow-sm sm:size-32">
                 {profile.profileImage ? (
-                  <img alt={profile.name} className="h-full w-full object-cover" src={profile.profileImage} />
+                  <Image alt={profile.name} className="h-full w-full object-cover" height={128} src={profile.profileImage} width={128} />
                 ) : (
                   profile.name.slice(0, 2).toUpperCase()
                 )}
@@ -226,28 +246,22 @@ export function ProfilePage() {
 
           {tab === "posts" && (
             <div>
-              {activity.map((post) => (
-                <article key={post.id} className="p-5 sm:p-6">
+              {posts.length === 0 ? <p className="p-10 text-center text-sm text-muted-foreground">Your published posts will appear here.</p> : posts.map((post) => (
+                <article key={post._id} className="p-5 sm:p-6">
                   <div className="flex gap-3">
                     <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-900 text-xs font-bold text-white">YO</div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-semibold">{profile.name} <span className="font-normal text-muted-foreground">{shortAddress(account?.address)} · {post.time}</span></p>
+                          <p className="font-semibold">{profile.name} <span className="font-normal text-muted-foreground">{shortAddress(account?.address)} · {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : "Recently"}</span></p>
                         </div>
                         <button aria-label="More options" className="text-muted-foreground"><MoreHorizontal className="size-5" /></button>
                       </div>
-                      <p className="mt-3 leading-6 text-foreground/90">{post.text}</p>
-                      {post.image && (
-                        <div className="mt-4 grid h-60 place-items-center overflow-hidden rounded-2xl bg-[radial-gradient(circle_at_20%_80%,#e1bbff,transparent_27%),radial-gradient(circle_at_75%_15%,#ffd26d,transparent_22%),linear-gradient(135deg,#3c2483,#9b5bb8_55%,#f19a6d)]">
-                          <div className="grid size-24 place-items-center rounded-[2rem] border border-white/35 bg-white/15 text-white backdrop-blur-sm">
-                            <Sparkles className="size-9" />
-                          </div>
-                        </div>
-                      )}
+                      <Link href={`/post/${post.blog_slug}`} className="mt-3 block hover:text-violet-700"><h2 className="text-lg font-semibold">{post.blog_title}</h2><p className="mt-1 leading-6 text-foreground/90">{post.blog_description || post.blog_content.replace(/<br\s*\/?>(\n)?/g, " ")}</p></Link>
+                      {post.blog_image && <Image alt="" className="mt-4 h-60 w-full rounded-2xl object-cover" height={240} src={post.blog_image} width={800} />}
                       <div className="mt-4 flex gap-5 border-t pt-3 text-sm text-muted-foreground">
-                        <span className="inline-flex items-center gap-1.5"><Heart className="size-4" /> {post.likes}</span>
-                        <span className="inline-flex items-center gap-1.5"><MessageCircle className="size-4" /> {post.replies}</span>
+                        <span className="inline-flex items-center gap-1.5"><Heart className="size-4" /> 0</span>
+                        <span className="inline-flex items-center gap-1.5"><MessageCircle className="size-4" /> 0</span>
                       </div>
                     </div>
                   </div>
@@ -274,7 +288,7 @@ export function ProfilePage() {
               </div>
             </div>
           )}
-          {tab === "assets" && <ProfileAssets embedded onUseImage={useGalleryImage} />}
+          {tab === "assets" && <ProfileAssets embedded onUseImage={saveGalleryImage} />}
         </section>
       </div>
 
@@ -304,7 +318,7 @@ export function ProfilePage() {
         <ProfileMediaPicker
           onClose={() => setMediaPickerTarget(null)}
           onSelect={(imageUrl) => {
-            void useGalleryImage(imageUrl, mediaPickerTarget);
+            void saveGalleryImage(imageUrl, mediaPickerTarget);
             setMediaPickerTarget(null);
           }}
           target={mediaPickerTarget}

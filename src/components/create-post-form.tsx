@@ -1,6 +1,6 @@
 "use client";
 
-import { useCurrentAccount, useCurrentClient, useDAppKit } from "@mysten/dapp-kit-react";
+import { useCurrentAccount } from "@mysten/dapp-kit-react";
 import { Loader2, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,8 +14,6 @@ function makeSlug(title: string) {
 
 export function CreatePostForm() {
     const account = useCurrentAccount();
-    const client = useCurrentClient();
-    const dAppKit = useDAppKit();
     const router = useRouter();
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
@@ -26,37 +24,15 @@ export function CreatePostForm() {
     async function publish() {
         if (!account?.address) { setStatus({ tone: "error", message: "Connect your Sui wallet before publishing." }); return; }
         if (!title.trim() || !content.trim()) { setStatus({ tone: "error", message: "A title and post content are required." }); return; }
-        const mintTarget = process.env.NEXT_PUBLIC_NFT_POST_MINT_TARGET;
-        const capTarget = mintTarget?.replace(/::mint_post$/, "::create_post_mint_cap");
-        if (!capTarget || capTarget === mintTarget) { setStatus({ tone: "error", message: "Set NEXT_PUBLIC_NFT_POST_MINT_TARGET to the package's ::collection::mint_post function before publishing." }); return; }
         const walletAddress = account.address.toLowerCase();
         const cleanTitle = title.trim(); const cleanDescription = description.trim(); const cleanContent = content.trim();
         const slug = makeSlug(cleanTitle); const timestamp = Date.now();
-        const message = `Gather create post\nwallet:${walletAddress}\nslug:${slug}\ntitle:${cleanTitle}\ndescription:${cleanDescription}\ncontent:${cleanContent}\ntimestamp:${timestamp}`;
-        setPublishing(true); setStatus({ tone: "info", message: "Approve the post with your wallet…" });
+        setPublishing(true); setStatus({ tone: "info", message: "Publishing your post…" });
         try {
-            const approval = await dAppKit.signPersonalMessage({ message: new TextEncoder().encode(message) });
-            const postResponse = await fetch("/api/posts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ walletAddress, title: cleanTitle, description: cleanDescription, content: cleanContent, slug, timestamp, signature: approval.signature }) });
+            const postResponse = await fetch("/api/posts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ walletAddress, title: cleanTitle, description: cleanDescription, content: cleanContent, slug, timestamp }) });
             const postData = await postResponse.json();
             if (!postResponse.ok) throw new Error(postData.error || "Unable to publish this post.");
-
-            setStatus({ tone: "info", message: "Creating your creator-only mint authorization…" });
-            const { Transaction } = await import("@mysten/sui/transactions");
-            const tx = new Transaction();
-            tx.moveCall({ target: capTarget, arguments: [tx.pure.string(slug)] });
-            const result = await dAppKit.signAndExecuteTransaction({ transaction: tx });
-            if (result.$kind === "FailedTransaction") throw new Error(result.FailedTransaction.status.error?.message ?? "Unable to create the mint authorization.");
-            const completed = await client.core.waitForTransaction({ digest: result.Transaction.digest, include: { effects: true, objectTypes: true } });
-            if (completed.$kind === "FailedTransaction") throw new Error(completed.FailedTransaction.status.error?.message ?? "Mint authorization transaction failed.");
-            const capId = completed.Transaction.effects.changedObjects.find((change) => change.idOperation === "Created" && completed.Transaction.objectTypes[change.objectId]?.endsWith("::collection::PostMintCap"))?.objectId;
-            if (!capId) throw new Error("Post published, but its mint authorization object was not found.");
-
-            const capTimestamp = Date.now();
-            const capMessage = `Gather link post mint cap\nwallet:${walletAddress}\nslug:${slug}\ncap:${capId}\ntimestamp:${capTimestamp}`;
-            const capApproval = await dAppKit.signPersonalMessage({ message: new TextEncoder().encode(capMessage) });
-            const capResponse = await fetch(`/api/posts/${encodeURIComponent(slug)}/mint-cap`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ walletAddress, postMintCapId: capId, timestamp: capTimestamp, signature: capApproval.signature }) });
-            const capData = await capResponse.json();
-            if (!capResponse.ok) throw new Error(capData.error || "Post published, but its mint authorization could not be linked.");
+            setStatus({ tone: "info", message: "Post published. You can mint it as a collectible from the post page later." });
             router.push(`/post/${slug}`); router.refresh();
         } catch (error) { setStatus({ tone: "error", message: error instanceof Error ? error.message : "Unable to publish this post." }); }
         finally { setPublishing(false); }

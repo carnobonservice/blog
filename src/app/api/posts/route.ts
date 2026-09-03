@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyPersonalMessageSignature } from "@mysten/sui/verify";
-import { createBlogPost } from "@/app/lib/mongodbBlog";
+import { createBlogPost, getBlogPosts } from "@/app/lib/mongodbBlog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,11 +7,15 @@ export const dynamic = "force-dynamic";
 const SUI_ADDRESS = /^0x[0-9a-fA-F]{1,64}$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-type Payload = { walletAddress?: unknown; title?: unknown; description?: unknown; content?: unknown; slug?: unknown; timestamp?: unknown; signature?: unknown };
-
-function message(input: { walletAddress: string; title: string; description: string; content: string; slug: string; timestamp: number }) {
-    return `Gather create post\nwallet:${input.walletAddress.toLowerCase()}\nslug:${input.slug}\ntitle:${input.title}\ndescription:${input.description}\ncontent:${input.content}\ntimestamp:${input.timestamp}`;
+export async function GET(request: Request) {
+    const walletAddress = new URL(request.url).searchParams.get("walletAddress");
+    if (!walletAddress || !SUI_ADDRESS.test(walletAddress)) {
+        return NextResponse.json({ error: "A valid wallet address is required." }, { status: 400 });
+    }
+    return NextResponse.json({ posts: await getBlogPosts(walletAddress) });
 }
+
+type Payload = { walletAddress?: unknown; title?: unknown; description?: unknown; content?: unknown; slug?: unknown; timestamp?: unknown };
 
 function escapeHtml(value: string) {
     return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
@@ -21,7 +24,7 @@ function escapeHtml(value: string) {
 export async function POST(request: Request) {
     let body: Payload;
     try { body = await request.json(); } catch { return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 }); }
-    if (typeof body.walletAddress !== "string" || !SUI_ADDRESS.test(body.walletAddress) || typeof body.title !== "string" || typeof body.description !== "string" || typeof body.content !== "string" || typeof body.slug !== "string" || !SLUG.test(body.slug) || typeof body.timestamp !== "number" || typeof body.signature !== "string") {
+    if (typeof body.walletAddress !== "string" || !SUI_ADDRESS.test(body.walletAddress) || typeof body.title !== "string" || typeof body.description !== "string" || typeof body.content !== "string" || typeof body.slug !== "string" || !SLUG.test(body.slug) || typeof body.timestamp !== "number") {
         return NextResponse.json({ error: "Invalid post payload." }, { status: 400 });
     }
     const title = body.title.trim(); const description = body.description.trim(); const content = body.content.trim();
@@ -30,7 +33,6 @@ export async function POST(request: Request) {
     }
     const walletAddress = body.walletAddress.toLowerCase();
     try {
-        await verifyPersonalMessageSignature(new TextEncoder().encode(message({ walletAddress, title, description, content, slug: body.slug, timestamp: body.timestamp })), body.signature, { address: walletAddress });
         const post = await createBlogPost({ title, description, content: escapeHtml(content).replace(/\n/g, "<br />"), slug: body.slug, authorWallet: walletAddress });
         return NextResponse.json({ post }, { status: 201 });
     } catch (error) {
