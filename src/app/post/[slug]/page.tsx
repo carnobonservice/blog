@@ -25,15 +25,17 @@ export default async function PostPage({ params }: PostPageProps) {
             </Link>
 
             <article className="overflow-hidden rounded-xl bg-white shadow-sm">
-                <div className="relative h-80 w-full">
-                    <Image
-                        src={post.blog_image || "/sui_blog.png"}
-                        alt={post.blog_title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 900px"
-                    />
-                </div>
+                {post.blog_image ? (
+                    <div className="relative h-80 w-full">
+                        <Image
+                            src={post.blog_image}
+                            alt={post.blog_title}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 900px"
+                        />
+                    </div>
+                ) : null}
 
                 <div className="p-8 md:p-10">
                     <p className="text-sm uppercase tracking-[0.2em] text-gray-500">

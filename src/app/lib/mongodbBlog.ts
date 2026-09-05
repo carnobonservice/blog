@@ -153,6 +153,7 @@ export async function createBlogPost(input: {
     content: string;
     slug: string;
     authorWallet: string;
+    image?: string;
 }): Promise<BlogPost> {
     const conn = await dbBlogConnect();
     const BlogModel = conn.models.Blog || conn.model<BlogPostDocument>("Blog", blogSchema);
@@ -160,7 +161,7 @@ export async function createBlogPost(input: {
         blog_title: input.title,
         blog_description: input.description,
         blog_content: input.content,
-        blog_image: "/sui_blog.png",
+        ...(input.image?.trim() ? { blog_image: input.image.trim() } : {}),
         blog_slug: input.slug,
         authorWallet: input.authorWallet.toLowerCase(),
     });

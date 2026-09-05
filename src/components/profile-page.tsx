@@ -1,7 +1,7 @@
 "use client";
 
 import { useCurrentAccount } from "@mysten/dapp-kit-react";
-import { BadgeCheck, CalendarDays, Camera, Check, Edit3, Heart, Link2, MapPin, MessageCircle, MoreHorizontal, Share2, Sparkles, Sparkle } from "lucide-react";
+import { BadgeCheck, CalendarDays, Camera, Check, Edit3, Heart, Link2, MapPin, MessageCircle, Share2, Sparkles, Sparkle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -247,25 +247,26 @@ export function ProfilePage() {
           {tab === "posts" && (
             <div>
               {posts.length === 0 ? <p className="p-10 text-center text-sm text-muted-foreground">Your published posts will appear here.</p> : posts.map((post) => (
-                <article key={post._id} className="p-5 sm:p-6">
-                  <div className="flex gap-3">
-                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-900 text-xs font-bold text-white">YO</div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-semibold">{profile.name} <span className="font-normal text-muted-foreground">{shortAddress(account?.address)} · {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : "Recently"}</span></p>
+                <Link key={post._id} href={`/post/${post.blog_slug}`} className="block transition hover:bg-slate-50">
+                  <article className="p-5 sm:p-6">
+                    <div className="flex gap-3">
+                      <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-900 text-xs font-bold text-white">YO</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-semibold">{profile.name} <span className="font-normal text-muted-foreground">{shortAddress(account?.address)} · {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : "Recently"}</span></p>
+                          </div>
                         </div>
-                        <button aria-label="More options" className="text-muted-foreground"><MoreHorizontal className="size-5" /></button>
-                      </div>
-                      <Link href={`/post/${post.blog_slug}`} className="mt-3 block hover:text-violet-700"><h2 className="text-lg font-semibold">{post.blog_title}</h2><p className="mt-1 leading-6 text-foreground/90">{post.blog_description || post.blog_content.replace(/<br\s*\/?>(\n)?/g, " ")}</p></Link>
-                      {post.blog_image && <Image alt="" className="mt-4 h-60 w-full rounded-2xl object-cover" height={240} src={post.blog_image} width={800} />}
-                      <div className="mt-4 flex gap-5 border-t pt-3 text-sm text-muted-foreground">
-                        <span className="inline-flex items-center gap-1.5"><Heart className="size-4" /> 0</span>
-                        <span className="inline-flex items-center gap-1.5"><MessageCircle className="size-4" /> 0</span>
+                        <div className="mt-3 hover:text-violet-700"><h2 className="text-lg font-semibold">{post.blog_title}</h2><p className="mt-1 leading-6 text-foreground/90">{post.blog_description || post.blog_content.replace(/<br\s*\/?>(\n)?/g, " ")}</p></div>
+                        {post.blog_image && <Image alt="" className="mt-4 h-60 w-full rounded-2xl object-cover" height={240} src={post.blog_image} width={800} />}
+                        <div className="mt-4 flex gap-5 border-t pt-3 text-sm text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5"><Heart className="size-4" /> 0</span>
+                          <span className="inline-flex items-center gap-1.5"><MessageCircle className="size-4" /> 0</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </article>
+                  </article>
+                </Link>
               ))}
             </div>
           )}

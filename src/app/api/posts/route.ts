@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ posts: await getBlogPosts(walletAddress) });
 }
 
-type Payload = { walletAddress?: unknown; title?: unknown; description?: unknown; content?: unknown; slug?: unknown; timestamp?: unknown };
+type Payload = { walletAddress?: unknown; title?: unknown; description?: unknown; content?: unknown; slug?: unknown; image?: unknown; timestamp?: unknown };
 
 function escapeHtml(value: string) {
     return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
@@ -24,16 +24,16 @@ function escapeHtml(value: string) {
 export async function POST(request: Request) {
     let body: Payload;
     try { body = await request.json(); } catch { return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 }); }
-    if (typeof body.walletAddress !== "string" || !SUI_ADDRESS.test(body.walletAddress) || typeof body.title !== "string" || typeof body.description !== "string" || typeof body.content !== "string" || typeof body.slug !== "string" || !SLUG.test(body.slug) || typeof body.timestamp !== "number") {
+    if (typeof body.walletAddress !== "string" || !SUI_ADDRESS.test(body.walletAddress) || typeof body.title !== "string" || typeof body.description !== "string" || typeof body.content !== "string" || (body.image !== undefined && typeof body.image !== "string") || typeof body.slug !== "string" || !SLUG.test(body.slug) || typeof body.timestamp !== "number") {
         return NextResponse.json({ error: "Invalid post payload." }, { status: 400 });
     }
-    const title = body.title.trim(); const description = body.description.trim(); const content = body.content.trim();
-    if (!title || !content || title.length > 160 || description.length > 500 || content.length > 50_000 || Math.abs(Date.now() - body.timestamp) > 5 * 60_000) {
+    const title = body.title.trim(); const description = body.description.trim(); const content = body.content.trim(); const image = typeof body.image === "string" ? body.image.trim() : "";
+    if (!title || !content || title.length > 160 || description.length > 500 || content.length > 50_000 || image.length > 2_000 || Math.abs(Date.now() - body.timestamp) > 5 * 60_000) {
         return NextResponse.json({ error: "Post content is invalid or the wallet approval has expired." }, { status: 400 });
     }
     const walletAddress = body.walletAddress.toLowerCase();
     try {
-        const post = await createBlogPost({ title, description, content: escapeHtml(content).replace(/\n/g, "<br />"), slug: body.slug, authorWallet: walletAddress });
+        const post = await createBlogPost({ title, description, content: escapeHtml(content).replace(/\n/g, "<br />"), slug: body.slug, authorWallet: walletAddress, image });
         return NextResponse.json({ post }, { status: 201 });
     } catch (error) {
         if ((error as { code?: number }).code === 11000) return NextResponse.json({ error: "That post URL already exists. Please publish again." }, { status: 409 });
