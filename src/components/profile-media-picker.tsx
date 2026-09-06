@@ -1,8 +1,8 @@
 "use client";
 
 import { useCurrentAccount } from "@mysten/dapp-kit-react";
-import { useQuery } from "@tanstack/react-query";
-import { ImageIcon, Images, Loader2, Sparkles, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ImageIcon, Images, Loader2, Sparkles, Upload, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -14,12 +14,15 @@ export function ProfileMediaPicker({
   onClose,
   onSelect,
 }: {
-  target: "profile" | "cover";
+  target: "profile" | "cover" | "post";
   onClose: () => void;
   onSelect: (imageUrl: string) => void;
 }) {
   const account = useCurrentAccount();
+  const queryClient = useQueryClient();
   const [source, setSource] = useState<"images" | "nfts">("images");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const imagesQuery = useQuery({
     queryKey: ["nft-gallery", account?.address],
@@ -45,7 +48,29 @@ export function ProfileMediaPicker({
   const items = source === "images" ? imagesQuery.data ?? [] : nftsQuery.data ?? [];
   const isLoading = source === "images" ? imagesQuery.isPending : nftsQuery.isPending;
   const isError = source === "images" ? imagesQuery.isError : nftsQuery.isError;
-  const label = target === "profile" ? "avatar" : "cover image";
+  const label = target === "profile" ? "avatar" : target === "cover" ? "cover image" : "post image";
+
+  async function uploadImage(file: File) {
+    if (!account?.address) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("walletAddress", account.address);
+      const response = await fetch("/api/profile/upload", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to upload this image.");
+      const imageUrl = data.image?.url || data.secureUrl;
+      if (!imageUrl) throw new Error("The uploaded image did not return a URL.");
+      await queryClient.invalidateQueries({ queryKey: ["nft-gallery", account.address] });
+      onSelect(imageUrl);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Unable to upload this image.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/35 p-4 backdrop-blur-sm">
@@ -68,7 +93,9 @@ export function ProfileMediaPicker({
         </div>
 
         <div className="max-h-[55vh] overflow-y-auto p-5 sm:p-6">
-          {!account?.address ? <p className="py-8 text-center text-sm text-muted-foreground">Connect your wallet to choose an image.</p> : isLoading ? <p className="flex justify-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading…</p> : isError ? <p className="py-8 text-center text-sm text-rose-600">Unable to load these assets.</p> : items.length ? (
+          {account?.address && source === "images" ? <div className="mb-4 flex items-center justify-between gap-3"><p className="text-sm font-semibold">Your images</p><label className={cn("inline-flex cursor-pointer items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700", uploading && "cursor-wait opacity-60")}><Upload className="size-4" /> {uploading ? "Uploading…" : "Upload new image"}<input accept="image/*" className="sr-only" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); event.target.value = ""; }} type="file" /></label></div> : null}
+          {uploadError ? <p className="mb-4 text-sm text-rose-600">{uploadError}</p> : null}
+          {!account?.address ? <p className="py-8 text-center text-sm text-muted-foreground">Connect your wallet to choose an image.</p> : isLoading || uploading ? <p className="flex justify-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {uploading ? "Uploading image…" : "Loading…"}</p> : isError ? <p className="py-8 text-center text-sm text-rose-600">Unable to load these assets.</p> : items.length ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {items.map((item) => (
                 <button className="group overflow-hidden rounded-xl border border-black/5 text-left transition hover:ring-2 hover:ring-violet-500" key={item.id} onClick={() => onSelect("url" in item ? item.url : item.image)} type="button">
