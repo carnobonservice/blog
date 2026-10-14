@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createBlogPost, getBlogPosts } from "@/app/lib/mongodbBlog";
+import { getNftPostSlugs } from "@/app/lib/mongodbNft";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,9 @@ export async function GET(request: Request) {
     if (!walletAddress || !SUI_ADDRESS.test(walletAddress)) {
         return NextResponse.json({ error: "A valid wallet address is required." }, { status: 400 });
     }
-    return NextResponse.json({ posts: await getBlogPosts(walletAddress) });
+    const posts = await getBlogPosts(walletAddress);
+    const nftPostSlugs = await getNftPostSlugs(posts.map((post) => post.blog_slug));
+    return NextResponse.json({ posts, nftPostSlugs });
 }
 
 type Payload = { walletAddress?: unknown; title?: unknown; description?: unknown; content?: unknown; slug?: unknown; image?: unknown; timestamp?: unknown };

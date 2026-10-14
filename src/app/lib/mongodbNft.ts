@@ -129,3 +129,25 @@ export async function getNftById(id: string): Promise<Nft | null> {
     const nft = await NftModel.findById(id).lean<NftDocument | null>().exec();
     return nft ? toNft(nft) : null;
 }
+
+export async function getNftByPostSlug(slug: string): Promise<Nft | null> {
+    if (!slug) return null;
+
+    const conn = await dbNftConnect();
+    const NftModel = conn.models.Nft || conn.model<NftDocument>("Nft", nftSchema);
+    const nft = await NftModel.findOne({ postSlug: slug }).lean<NftDocument | null>().exec();
+    return nft ? toNft(nft) : null;
+}
+
+export async function getNftPostSlugs(slugs: string[]): Promise<string[]> {
+    const uniqueSlugs = [...new Set(slugs.filter(Boolean))];
+    if (uniqueSlugs.length === 0) return [];
+
+    const conn = await dbNftConnect();
+    const NftModel = conn.models.Nft || conn.model<NftDocument>("Nft", nftSchema);
+    const nfts = await NftModel.find({ postSlug: { $in: uniqueSlugs } })
+        .select({ postSlug: 1, _id: 0 })
+        .lean<Array<Pick<NftDocument, "postSlug">>>()
+        .exec();
+    return nfts.flatMap((nft) => nft.postSlug ? [nft.postSlug] : []);
+}

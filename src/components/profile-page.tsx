@@ -53,6 +53,7 @@ export function ProfilePage() {
   const [statusTone, setStatusTone] = useState<"success" | "error" | "info">("info");
   const [profile, setProfile] = useState<ProfileState>(defaultProfile);
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [nftPostSlugs, setNftPostSlugs] = useState<string[]>([]);
 
   useEffect(() => {
     const walletAddress = account?.address;
@@ -101,8 +102,11 @@ export function ProfilePage() {
       try {
         const response = await fetch(`/api/posts?walletAddress=${encodeURIComponent(walletAddress)}`);
         if (!response.ok) throw new Error("Unable to load your posts");
-        const { posts: databasePosts }: { posts: BlogPost[] } = await response.json();
-        if (!cancelled) setPosts(databasePosts);
+        const { posts: databasePosts, nftPostSlugs: mintedPostSlugs }: { posts: BlogPost[]; nftPostSlugs: string[] } = await response.json();
+        if (!cancelled) {
+          setPosts(databasePosts);
+          setNftPostSlugs(mintedPostSlugs);
+        }
       } catch (error) {
         console.error("Unable to load profile posts:", error);
       }
@@ -257,7 +261,7 @@ export function ProfilePage() {
                             <p className="font-semibold">{profile.name} <span className="font-normal text-muted-foreground">{shortAddress(account?.address)} · {post.createdAt ? new Date(post.createdAt).toLocaleDateString() : "Recently"}</span></p>
                           </div>
                         </div>
-                        <div className="mt-3 hover:text-violet-700"><h2 className="text-lg font-semibold">{post.blog_title}</h2><p className="mt-1 leading-6 text-foreground/90">{post.blog_description || post.blog_content.replace(/<br\s*\/?>(\n)?/g, " ")}</p></div>
+                        <div className="mt-3 hover:text-violet-700"><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">{post.blog_title}</h2>{nftPostSlugs.includes(post.blog_slug) && <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-800" aria-label="NFT post"><Sparkles className="size-3" aria-hidden="true" /> NFT</span>}</div><p className="mt-1 leading-6 text-foreground/90">{post.blog_description || post.blog_content.replace(/<br\s*\/?>(\n)?/g, " ")}</p></div>
                         {post.blog_image && <Image alt="" className="mt-4 h-60 w-full rounded-2xl object-cover" height={240} src={post.blog_image} width={800} />}
                         <div className="mt-4 flex gap-5 border-t pt-3 text-sm text-muted-foreground">
                           <span className="inline-flex items-center gap-1.5"><Heart className="size-4" /> 0</span>

@@ -1,8 +1,11 @@
 import { getBlogPosts } from "@/app/lib/mongodbBlog";
+import { getNftPostSlugs } from "@/app/lib/mongodbNft";
 import { SocialHome } from "@/components/social-home";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  return <SocialHome initialPosts={await getBlogPosts()} />;
+  const initialPosts = await getBlogPosts();
+  const nftPostSlugs = await getNftPostSlugs(initialPosts.map((post) => post.blog_slug));
+  return <SocialHome initialPosts={initialPosts} nftPostSlugs={nftPostSlugs} />;
 }
